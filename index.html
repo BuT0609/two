@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>赛博太阳系 - 指挥官交互版</title>
+    <title>赛博太阳系 - 时间掌控者</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #000; cursor: crosshair; }
         #canvas-container { width: 100vw; height: 100vh; }
@@ -18,16 +18,16 @@
             position: absolute; bottom: 30px; left: 30px;
             color: white; font-size: 24px; font-weight: bold;
             text-shadow: 0 0 10px rgba(255,255,255,0.8);
-            display: none; /* 默认隐藏 */
+            display: none; 
         }
     </style>
 </head>
 <body>
     <div id="canvas-container"></div>
     <div class="ui">
-        <h2>SOLAR SYSTEM // INTERACTIVE</h2>
+        <h2>SOLAR SYSTEM // TIME STOP</h2>
         <div class="tips">
-            [鼠标悬停] 识别行星<br>
+            [鼠标悬停] 冻结所有行星运动<br>
             [左键点击] 锁定/跟随视角<br>
             [点击深空] 重置上帝视角
         </div>
@@ -50,42 +50,33 @@
         import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-        // 1. 场景设置
+        // --- 场景初始化 (与之前相同) ---
         const scene = new THREE.Scene();
         scene.fog = new THREE.FogExp2(0x000000, 0.001); 
-
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
         camera.position.set(0, 150, 250); 
-
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.toneMapping = THREE.ReinhardToneMapping; 
         document.getElementById('canvas-container').appendChild(renderer.domElement);
-
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
-        
+
         // 后期处理 (Bloom)
         const renderScene = new RenderPass(scene, camera);
         const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
-        bloomPass.threshold = 0;
-        bloomPass.strength = 2.2; 
-        bloomPass.radius = 0.5;
-
+        bloomPass.threshold = 0; bloomPass.strength = 2.2; bloomPass.radius = 0.5;
         const composer = new EffectComposer(renderer);
         composer.addPass(renderScene);
         composer.addPass(bloomPass);
 
-        // 太阳
-        const sun = new THREE.Mesh(
-            new THREE.SphereGeometry(15, 32, 32),
-            new THREE.MeshBasicMaterial({ color: 0xFF6600 })
-        );
+        // 太阳与光
+        const sun = new THREE.Mesh(new THREE.SphereGeometry(15, 32, 32), new THREE.MeshBasicMaterial({ color: 0xFF6600 }));
         scene.add(sun);
         scene.add(new THREE.PointLight(0xffaa00, 3, 300));
 
-        // 2. 行星数据
+        // --- 行星数据与创建 (与之前相同) ---
         const planetsData = [
             { name: "水星 MERCURY", r: 2, dist: 25, speed: 0.04, color: 0xDDDDDD },
             { name: "金星 VENUS", r: 4, dist: 35, speed: 0.025, color: 0xFFD700 },
@@ -97,42 +88,20 @@
             { name: "海王星 NEPTUNE", r: 5.8, dist: 190, speed: 0.003, color: 0x3355FF },
             { name: "冥王星 PLUTO", r: 1.5, dist: 220, speed: 0.002, color: 0x666666 }
         ];
-
-        const planetMeshes = []; // 专门存储行星Mesh用于射线检测
-        const planetsObj = [];   // 存储完整数据对象
-
+        const planetMeshes = []; 
+        const planetsObj = [];   
         planetsData.forEach(data => {
-            // 轨道
-            const track = new THREE.Mesh(
-                new THREE.RingGeometry(data.dist - 0.3, data.dist + 0.3, 128),
-                new THREE.MeshBasicMaterial({ color: data.color, side: THREE.DoubleSide, transparent: true, opacity: 0.15 })
-            );
-            track.rotation.x = -Math.PI / 2;
-            scene.add(track);
-
-            // 行星
-            const planetMat = new THREE.MeshStandardMaterial({ 
-                color: data.color,
-                roughness: 0.3,
-                emissive: data.color,
-                emissiveIntensity: 0.5 
-            });
+            const track = new THREE.Mesh(new THREE.RingGeometry(data.dist - 0.3, data.dist + 0.3, 128), new THREE.MeshBasicMaterial({ color: data.color, side: THREE.DoubleSide, transparent: true, opacity: 0.15 }));
+            track.rotation.x = -Math.PI / 2; scene.add(track);
+            const planetMat = new THREE.MeshStandardMaterial({ color: data.color, roughness: 0.3, emissive: data.color, emissiveIntensity: 0.5 });
             const planet = new THREE.Mesh(new THREE.SphereGeometry(data.r, 32, 32), planetMat);
-            
-            // 绑定自定义数据，方便交互时读取
             planet.userData = { isPlanet: true, name: data.name, originalColor: data.color };
-
             if (data.ring) {
-                const ring = new THREE.Mesh(
-                    new THREE.RingGeometry(data.r * 1.4, data.r * 2.2, 64),
-                    new THREE.MeshBasicMaterial({ color: 0xAA9977, side: THREE.DoubleSide, transparent: true, opacity: 0.6 })
-                );
-                ring.rotation.x = Math.PI / 2;
-                planet.add(ring);
+                const ring = new THREE.Mesh(new THREE.RingGeometry(data.r * 1.4, data.r * 2.2, 64), new THREE.MeshBasicMaterial({ color: 0xAA9977, side: THREE.DoubleSide, transparent: true, opacity: 0.6 }));
+                ring.rotation.x = Math.PI / 2; planet.add(ring);
             }
-
             scene.add(planet);
-            planetMeshes.push(planet); // 加入检测列表
+            planetMeshes.push(planet); 
             planetsObj.push({ mesh: planet, ...data, angle: Math.random() * Math.PI * 2 });
         });
 
@@ -145,50 +114,33 @@
         const stars = new THREE.Points(starsGeo, new THREE.PointsMaterial({size:0.8, color:0xffffff, transparent:true, opacity:0.6}));
         scene.add(stars);
 
-        // --- 3. 交互核心逻辑 (Raycaster) ---
+        // --- 交互逻辑 ---
         const raycaster = new THREE.Raycaster();
-        const mouse = new THREE.Vector2();
-        let hoveredPlanet = null; // 当前悬停的行星
-        let focusedPlanet = null; // 当前锁定的行星
-        
+        const mouse = new THREE.Vector2(999, 999); // 初始移出屏幕外，避免开局误触
+        let hoveredPlanet = null;
+        let focusedPlanet = null;
         const infoDiv = document.getElementById('planet-info');
 
-        // 监听鼠标移动
         window.addEventListener('mousemove', (event) => {
             mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
         });
 
-        // 监听点击
         window.addEventListener('click', () => {
-            if (hoveredPlanet) {
-                // 如果点到了行星，锁定它
-                focusedPlanet = hoveredPlanet;
-            } else {
-                // 如果点到虚空，重置
-                focusedPlanet = null;
-                controls.target.set(0, 0, 0); // 视角看回太阳
-            }
+            if (hoveredPlanet) focusedPlanet = hoveredPlanet;
+            else { focusedPlanet = null; controls.target.set(0, 0, 0); }
         });
 
+        // --- 动画主循环 ---
         function animate() {
             requestAnimationFrame(animate);
 
-            // 1. 行星公转
-            planetsObj.forEach(p => {
-                p.angle += p.speed * 4.0; // 速度
-                p.mesh.position.x = Math.cos(p.angle) * p.dist;
-                p.mesh.position.z = Math.sin(p.angle) * p.dist;
-                p.mesh.rotation.y += 0.05;
-            });
-            sun.rotation.y += 0.005;
-            stars.rotation.y -= 0.0005;
-
-            // 2. 交互检测
+            // 1. 先进行交互检测
             raycaster.setFromCamera(mouse, camera);
             const intersects = raycaster.intersectObjects(planetMeshes);
+            let isAnyPlanetHovered = false; // 新增：本帧是否有行星被悬停
 
-            // 重置之前悬停行星的状态（变回原样）
+            // 重置之前的悬停状态
             if (hoveredPlanet && hoveredPlanet !== focusedPlanet) {
                 hoveredPlanet.scale.set(1, 1, 1);
                 hoveredPlanet.material.emissiveIntensity = 0.5;
@@ -199,36 +151,42 @@
             document.body.style.cursor = 'default';
 
             if (intersects.length > 0) {
-                // 鼠标碰到了某颗行星
+                // 鼠标碰到了行星
+                isAnyPlanetHovered = true; // 标记：需要暂停动画
                 const hit = intersects[0].object;
                 hoveredPlanet = hit;
                 
-                // 视觉反馈：变大、变亮、变白
+                // 高亮反馈
                 hit.scale.set(1.5, 1.5, 1.5);
                 hit.material.emissiveIntensity = 2.0;
-                hit.material.color.set(0xFFFFFF); // 变白高亮
-                
+                hit.material.color.set(0xFFFFFF);
                 document.body.style.cursor = 'pointer';
-                
-                // 显示名字
                 infoDiv.style.display = 'block';
                 infoDiv.innerText = hit.userData.name;
             }
 
-            // 3. 摄像机跟随逻辑
+            // 2. 动画更新 (核心修改点：如果没悬停，才更新位置)
+            // 只有当 isAnyPlanetHovered 为 false 时，才执行里面的代码
+            if (!isAnyPlanetHovered) {
+                planetsObj.forEach(p => {
+                    p.angle += p.speed * 4.0;
+                    p.mesh.position.x = Math.cos(p.angle) * p.dist;
+                    p.mesh.position.z = Math.sin(p.angle) * p.dist;
+                    p.mesh.rotation.y += 0.05; // 自转也停
+                });
+                sun.rotation.y += 0.005; // 太阳自转也停
+            }
+            
+            // 背景星空保持缓慢转动，增加一点生机
+            stars.rotation.y -= 0.0002;
+
+            // 3. 摄像机逻辑
             if (focusedPlanet) {
-                // 保持被锁定行星的高亮状态
+                // 保持锁定目标高亮
                 focusedPlanet.scale.set(1.5, 1.5, 1.5);
                 focusedPlanet.material.emissiveIntensity = 2.0;
                 focusedPlanet.material.color.set(0xFFFFFF);
-                
-                // 平滑移动摄像机目标点 (LookAt) 到行星位置
-                // lerp 是为了让镜头移动有缓冲，不晕
                 controls.target.lerp(focusedPlanet.position, 0.1);
-                
-                // 可选：如果你想让摄像机跟着飞，把下面注释打开
-                // camera.position.x += (focusedPlanet.position.x - controls.target.x) * 0.1;
-                // camera.position.z += (focusedPlanet.position.z - controls.target.z) * 0.1;
             }
 
             controls.update();
